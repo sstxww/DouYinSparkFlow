@@ -1,8 +1,25 @@
 name: DouYin Spark Flow Schedule Run
 on:
   workflow_dispatch: # 允许手动触发
-  schedule: # 定时任务
-    - cron: "0 1 * * *" # 每天 1:00 UTC（对应北京时间 9:00）
+  schedule: # 定时任务（北京时间）
+    - cron: "30 0 * * *"
+      timezone: "Asia/Shanghai"
+    - cron: "36 8 * * *"
+      timezone: "Asia/Shanghai"
+    - cron: "15 9 * * *"
+      timezone: "Asia/Shanghai"
+    - cron: "26 14 * * *"
+      timezone: "Asia/Shanghai"
+    - cron: "50 18 * * *"
+      timezone: "Asia/Shanghai"
+    - cron: "14 20 * * *"
+      timezone: "Asia/Shanghai"
+    - cron: "23 21 * * *"
+      timezone: "Asia/Shanghai"
+    - cron: "36 22 * * *"
+      timezone: "Asia/Shanghai"
+    - cron: "41 23 * * *"
+      timezone: "Asia/Shanghai"
 jobs:
   run-main:
     timeout-minutes: 20
