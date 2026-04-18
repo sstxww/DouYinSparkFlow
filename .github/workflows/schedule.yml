@@ -3,25 +3,25 @@ name: DouYin Spark Flow Schedule Run
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30,34,38,42 0 * * *"
+    - cron: "30,35,40,45 0 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "36,40,44,48 8 * * *"
+    - cron: "36,41,46,51 8 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "15,19,23,27 9 * * *"
+    - cron: "15,20,25,30 9 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "26,30,34,38 14 * * *"
+    - cron: "26,31,36,41 14 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "50,54,58 18 * * *"
+    - cron: "50,55 18 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "2 19 * * *"
+    - cron: "0,5 19 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "14,18,22,26 20 * * *"
+    - cron: "14,19,24,29 20 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "23,27,31,35 21 * * *"
+    - cron: "23,28,33,38 21 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "36,40,44,48 22 * * *"
+    - cron: "36,41,46,51 22 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "41,45,49,53 23 * * *"
+    - cron: "41,46,51,56 23 * * *"
       timezone: "Asia/Shanghai"
 
 permissions:
@@ -42,7 +42,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const t=['00:30','08:36','09:15','14:26','18:50','20:14','21:23','22:36','23:41'],g=25,w='schedule.yml',b='main';
+            const t=['00:30','08:36','09:15','14:26','18:50','20:14','21:23','22:36','23:41'],g=20,w='schedule.yml',b='main';
             if(context.eventName==='workflow_dispatch'){core.setOutput('go','true');return}
             const n=new Date(Date.now()+8*36e5),m=n.getUTCHours()*60+n.getUTCMinutes(),y=n.getUTCFullYear(),M=n.getUTCMonth(),d=n.getUTCDate();
             const s=t.map(x=>{const[a,c]=x.split(':').map(Number);return{x,a,c,r:m-a*60-c}}).filter(x=>x.r>=0&&x.r<=g).sort((x,y)=>x.r-y.r)[0];
