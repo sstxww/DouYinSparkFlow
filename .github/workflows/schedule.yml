@@ -2,7 +2,11 @@ name: DouYin Spark Flow Schedule Run
 on:
   workflow_dispatch:
   schedule:
-    - cron: 0 12,13 * * * # Beijing 20:00, 21:00
+    - cron: 0 0 * * * # Beijing 08:00
+    - cron: 30 3 * * * # Beijing 11:30
+    - cron: 20 8 * * * # Beijing 16:20
+    - cron: 0 12 * * * # Beijing 20:00
+    - cron: 0 13 * * * # Beijing 21:00
 jobs:
   run-main:
     timeout-minutes: 20
