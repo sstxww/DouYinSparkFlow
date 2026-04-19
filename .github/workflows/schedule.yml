@@ -13,7 +13,7 @@ on:
       timezone: "Asia/Shanghai"
     - cron: "50,55 18 * * *"
       timezone: "Asia/Shanghai"
-    - cron: "0,5 19 * * *"
+    - cron: "1,6 19 * * *"
       timezone: "Asia/Shanghai"
     - cron: "14,19,24,29 20 * * *"
       timezone: "Asia/Shanghai"
@@ -39,19 +39,85 @@ jobs:
       go: ${{ steps.slot.outputs.go }}
     steps:
       - id: slot
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
-            const t=['00:30','08:36','09:15','14:26','18:50','20:14','21:23','22:36','23:41'],g=20,w='schedule.yml',b='main';
-            if(context.eventName==='workflow_dispatch'){core.setOutput('go','true');return}
-            const n=new Date(Date.now()+8*36e5),m=n.getUTCHours()*60+n.getUTCMinutes(),y=n.getUTCFullYear(),M=n.getUTCMonth(),d=n.getUTCDate();
-            const s=t.map(x=>{const[a,c]=x.split(':').map(Number);return{x,a,c,r:m-a*60-c}}).filter(x=>x.r>=0&&x.r<=g).sort((x,y)=>x.r-y.r)[0];
-            if(!s){core.setOutput('go','false');return}
-            const A=new Date(Date.UTC(y,M,d,s.a-8,s.c)),B=new Date(A.getTime()+g*6e4);
-            const rs=await github.paginate(github.rest.actions.listWorkflowRuns,{owner:context.repo.owner,repo:context.repo.repo,workflow_id:w,branch:b,per_page:100});
-            const ok=!rs.find(r=>r.id!==context.runId&&new Date(r.created_at)>=A&&new Date(r.created_at)<=B);
-            core.notice(ok?`run ${s.x}`:`skip ${s.x}`);
-            core.setOutput('go',String(ok));
+            const slots = [
+              { label: '00:30', minute: 30, schedules: ['30,35,40,45 0 * * *'] },
+              { label: '08:36', minute: 8 * 60 + 36, schedules: ['36,41,46,51 8 * * *'] },
+              { label: '09:15', minute: 9 * 60 + 15, schedules: ['15,20,25,30 9 * * *'] },
+              { label: '14:26', minute: 14 * 60 + 26, schedules: ['26,31,36,41 14 * * *'] },
+              { label: '18:50', minute: 18 * 60 + 50, schedules: ['50,55 18 * * *', '1,6 19 * * *'] },
+              { label: '20:14', minute: 20 * 60 + 14, schedules: ['14,19,24,29 20 * * *'] },
+              { label: '21:23', minute: 21 * 60 + 23, schedules: ['23,28,33,38 21 * * *'] },
+              { label: '22:36', minute: 22 * 60 + 36, schedules: ['36,41,46,51 22 * * *'] },
+              { label: '23:41', minute: 23 * 60 + 41, schedules: ['41,46,51,56 23 * * *'] },
+            ];
+            const scheduleMap = new Map(
+              slots.flatMap((slot, index) => slot.schedules.map((schedule) => [schedule, { ...slot, index }]))
+            );
+
+            if (context.eventName === 'workflow_dispatch') {
+              core.notice('manual dispatch');
+              core.setOutput('go', 'true');
+              return;
+            }
+
+            const firedSchedule = context.payload.schedule;
+            const slot = scheduleMap.get(firedSchedule);
+            if (!slot) {
+              core.warning(`unknown schedule: ${firedSchedule ?? 'none'}`);
+              core.setOutput('go', 'false');
+              return;
+            }
+
+            const now = new Date();
+            const nowShanghai = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+            const hour = Math.floor(slot.minute / 60);
+            const minute = slot.minute % 60;
+            let windowStart = new Date(
+              Date.UTC(
+                nowShanghai.getUTCFullYear(),
+                nowShanghai.getUTCMonth(),
+                nowShanghai.getUTCDate(),
+                hour - 8,
+                minute
+              )
+            );
+            if (windowStart.getTime() > now.getTime()) {
+              windowStart = new Date(windowStart.getTime() - 24 * 60 * 60 * 1000);
+            }
+
+            const nextSlot = slots[(slot.index + 1) % slots.length];
+            const gapMinutes = (nextSlot.minute - slot.minute + 24 * 60) % (24 * 60) || 24 * 60;
+            const windowEnd = new Date(windowStart.getTime() + gapMinutes * 60 * 1000);
+            if (now.getTime() >= windowEnd.getTime()) {
+              core.notice(`skip stale slot ${slot.label}`);
+              core.setOutput('go', 'false');
+              return;
+            }
+
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'schedule.yml',
+              branch: 'main',
+              per_page: 100,
+              event: 'schedule',
+            });
+            const duplicated = runs.find((run) => {
+              if (run.id === context.runId) return false;
+              const createdAt = new Date(run.created_at);
+              return createdAt >= windowStart && createdAt < windowEnd;
+            });
+            if (duplicated) {
+              core.notice(`skip duplicate for ${slot.label}, existing run ${duplicated.id}`);
+              core.setOutput('go', 'false');
+              return;
+            }
+
+            core.notice(`run ${slot.label} from ${firedSchedule}`);
+            core.setOutput('go', 'true');
 
   run-main:
     needs: guard
@@ -61,7 +127,7 @@ jobs:
     environment: user-data
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: curl -I https://creator.douyin.com/
