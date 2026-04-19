@@ -1,31 +1,28 @@
-import os, sys
+import os
 import subprocess
+import sys
 import traceback
+
 from playwright.sync_api import sync_playwright
-from utils.config import DEBUG, get_environment, Environment
+
+from utils.config import DEBUG, Environment, get_config, get_environment
 
 PLAYWRIGHT_BROWSERS_PATH = "../chrome"
 
+
 def install_browser():
-    """
-    安装 Chromium 浏览器
-    """
     try:
         subprocess.run(["playwright", "install", "chromium"], check=True)
-        print("浏览器安装完成，请重新运行程序。")
+        print("????????????????")
     except subprocess.CalledProcessError as e:
-        print(f"发生未知错误：{e}")
+        print(f"???????{e}")
 
 
 def get_browser():
-    """
-    启动浏览器实例
-    :return: 浏览器实例
-    """
-
     headless = True
-
     env = get_environment()
+    config = get_config()
+
     if env == Environment.LOCAL:
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.abspath(
             os.path.join(os.path.dirname(__file__), PLAYWRIGHT_BROWSERS_PATH)
@@ -37,16 +34,25 @@ def get_browser():
             os.path.join(os.path.dirname(sys.executable), PLAYWRIGHT_BROWSERS_PATH)
         )
 
+    launch_kwargs = {
+        "headless": headless,
+        "args": [
+            "--disable-blink-features=AutomationControlled",
+            "--lang=zh-CN",
+            "--window-size=1440,960",
+        ],
+    }
+    if config.get("proxyAddress"):
+        launch_kwargs["proxy"] = {"server": config["proxyAddress"]}
+
     try:
-        # 启动浏览器
-        playwright = sync_playwright().start() 
-        browser = playwright.chromium.launch(headless=headless)
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch(**launch_kwargs)
         return playwright, browser
     except Exception as e:
-        # 捕获浏览器启动错误
         if "Executable doesn't exist" in str(e) and env != Environment.GITHUBACTION:
-            print("浏览器可执行文件不存在！")
+            print("????????????")
             install_browser()
             sys.exit(1)
-        else:
-            traceback.print_exc()
+        traceback.print_exc()
+        raise
