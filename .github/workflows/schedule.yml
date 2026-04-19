@@ -2,7 +2,7 @@ name: DouYin Spark Flow Schedule Run
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 12,13 * * *" # 每天 12:00、13:00 UTC（对应北京时间 20:00、21:00）
+    - cron: 0 12,13 * * * # Beijing 20:00, 21:00
 jobs:
   run-main:
     timeout-minutes: 20
@@ -10,13 +10,16 @@ jobs:
     environment: user-data
     steps:
     - uses: actions/checkout@v4
+      with:
+        repository: 2061360308/DouYinSparkFlow
+        ref: dev
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
     - name: Test Douyin Accessibility
       run: |
-        curl -I https://creator.douyin.com/
+        curl -I https://www.douyin.com/chat
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
