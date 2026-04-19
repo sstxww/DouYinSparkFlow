@@ -1,158 +1,40 @@
 name: DouYin Spark Flow Schedule Run
-
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"
-      timezone: "Asia/Shanghai"
-
-permissions:
-  actions: read
-  contents: read
-
-concurrency:
-  group: douyin-spark-flow-schedule
-  cancel-in-progress: false
-
+    - cron: "0 12,13 * * *" # 每天 12:00、13:00 UTC（对应北京时间 20:00、21:00）
 jobs:
-  guard:
-    runs-on: ubuntu-latest
-    outputs:
-      go: ${{ steps.slot.outputs.go }}
-    steps:
-      - id: slot
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const slots = [
-              { label: '00:30', minute: 30 },
-              { label: '08:36', minute: 8 * 60 + 36 },
-              { label: '09:15', minute: 9 * 60 + 15 },
-              { label: '14:26', minute: 14 * 60 + 26 },
-              { label: '18:50', minute: 18 * 60 + 50 },
-              { label: '20:14', minute: 20 * 60 + 14 },
-              { label: '21:23', minute: 21 * 60 + 23 },
-              { label: '22:36', minute: 22 * 60 + 36 },
-              { label: '23:41', minute: 23 * 60 + 41 },
-            ];
-            const graceMinutes = 25;
-
-            if (context.eventName === 'workflow_dispatch') {
-              core.notice('manual dispatch');
-              core.setOutput('go', 'true');
-              return;
-            }
-
-            const now = new Date();
-            const nowShanghai = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-            const makeWindowStart = (slotMinute) => {
-              const hour = Math.floor(slotMinute / 60);
-              const minute = slotMinute % 60;
-              let start = new Date(
-                Date.UTC(
-                  nowShanghai.getUTCFullYear(),
-                  nowShanghai.getUTCMonth(),
-                  nowShanghai.getUTCDate(),
-                  hour - 8,
-                  minute
-                )
-              );
-              if (start.getTime() > now.getTime()) {
-                start = new Date(start.getTime() - 24 * 60 * 60 * 1000);
-              }
-              return start;
-            };
-            const getNextWindowStart = (currentIndex, windowStart) => {
-              const nextSlot = slots[(currentIndex + 1) % slots.length];
-              const nextStart = makeWindowStart(nextSlot.minute);
-              return nextStart.getTime() <= windowStart.getTime()
-                ? new Date(nextStart.getTime() + 24 * 60 * 60 * 1000)
-                : nextStart;
-            };
-
-            const active = slots
-              .map((slot, index) => {
-                const windowStart = makeWindowStart(slot.minute);
-                const nextWindowStart = getNextWindowStart(index, windowStart);
-                const graceEnd = new Date(windowStart.getTime() + graceMinutes * 60 * 1000);
-                const windowEnd =
-                  graceEnd.getTime() < nextWindowStart.getTime() ? graceEnd : nextWindowStart;
-                return { ...slot, index, windowStart, windowEnd };
-              })
-              .find((slot) => now.getTime() >= slot.windowStart.getTime() && now.getTime() < slot.windowEnd.getTime());
-
-            if (!active) {
-              core.notice('skip outside delivery window');
-              core.setOutput('go', 'false');
-              return;
-            }
-
-            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'schedule.yml',
-              branch: 'main',
-              per_page: 100,
-              event: 'schedule',
-            });
-            const candidates = runs.filter((run) => {
-              if (run.id === context.runId) return false;
-              const createdAt = new Date(run.created_at);
-              return createdAt >= active.windowStart && createdAt < active.windowEnd;
-            });
-
-            for (const run of candidates) {
-              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: run.id,
-                per_page: 100,
-              });
-              const mainJob = jobs.find((job) => job.name === 'run-main');
-              if (!mainJob) continue;
-              const inFlight = mainJob.status !== 'completed';
-              const alreadyDelivered = mainJob.conclusion === 'success';
-              if (inFlight || alreadyDelivered) {
-                core.notice(`skip duplicate for ${active.label}, existing run ${run.id}`);
-                core.setOutput('go', 'false');
-                return;
-              }
-            }
-
-            if (candidates.length > 0) {
-              core.notice(`retry slot ${active.label} after prior non-success attempt`);
-            } else {
-              core.notice(`run slot ${active.label}`);
-            }
-            core.setOutput('go', 'true');
-
   run-main:
-    needs: guard
-    if: needs.guard.outputs.go == 'true'
     timeout-minutes: 20
     runs-on: ubuntu-latest
     environment: user-data
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: curl -I https://creator.douyin.com/
-      - run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - run: playwright install chromium --with-deps --only-shell
-      - env:
-          VARS_JSON: ${{ toJson(vars) }}
-          SECRETS_JSON: ${{ toJson(secrets) }}
-        run: python utils/export_github_env.py
-      - run: python main.py
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: run-logs
-          path: logs/
-
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - name: Test Douyin Accessibility
+      run: |
+        curl -I https://creator.douyin.com/
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Ensure browsers are installed
+      run: playwright install chromium --with-deps --only-shell
+    - name: Export Github Environment Variables and Secrets to JSON
+      env:
+        VARS_JSON: ${{ toJson(vars) }}
+        SECRETS_JSON: ${{ toJson(secrets) }}
+      run: python utils/export_github_env.py
+    - name: Run DouYin Spark Flow
+      run: python main.py
+    - uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() }}
+      with:
+        name: run-logs
+        path: logs/
   workflow-keepalive:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
