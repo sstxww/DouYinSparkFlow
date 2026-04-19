@@ -11,6 +11,8 @@ from utils.config import get_config, get_userData
 from core.msg_builder import build_message
 from core.browser import get_browser
 
+SEARCH_EMPTY_TEXT = "\u672a\u641c\u7d22\u5230\u76f8\u5173\u5185\u5bb9"
+
 config = get_config()
 userData = get_userData()
 logger = setup_logger(level=config.get("logLevel", "Info"))
@@ -36,8 +38,8 @@ def handle_response(response: Response):
     except Exception as e:
         tb = traceback.extract_tb(e.__traceback__)
         last = tb[-1]
-        print(f"??????: {e}")
-        print(f"??: {last.filename}, ??: {last.lineno}, ??: {last.name}")
+        print(f"Failed to parse user info response: {e}")
+        print(f"File: {last.filename}, line: {last.lineno}, function: {last.name}")
 
 
 def retry_operation(name, operation, retries=3, delay=2, *args, **kwargs):
@@ -46,10 +48,10 @@ def retry_operation(name, operation, retries=3, delay=2, *args, **kwargs):
             return operation(*args, **kwargs)
         except Exception as e:
             if attempt < retries - 1:
-                logger.warning(f"{name} ???????? {attempt + 1} ?????{e}")
+                logger.warning(f"{name} failed, retry {attempt + 1}: {e}")
                 time.sleep(delay)
             else:
-                logger.error(f"{name} ????????????????{e}")
+                logger.error(f"{name} failed after max retries: {e}")
                 raise
 
 
@@ -66,7 +68,7 @@ def save_debug_snapshot(page, username: str, label: str):
         body_text = page.locator("body").inner_text(timeout=5000)
         Path(f"logs/{slug}_{label}.txt").write_text(body_text, encoding="utf-8")
     except Exception as e:
-        logger.warning(f"?? {username} ?????????{e}")
+        logger.warning(f"Failed to save debug snapshot for {username}: {e}")
 
 
 def get_visible_titles(page):
@@ -94,9 +96,9 @@ def wait_for_chat_ready(page, username: str):
     time.sleep(max(config.get("friendListTimeout", 2000), 2000) / 1000)
     titles = get_visible_titles(page)
     if titles:
-        logger.info(f"?? {username} ??????: {titles[:12]}")
+        logger.info(f"{username} visible conversations: {titles[:12]}")
     else:
-        logger.warning(f"?? {username} ???????????????????")
+        logger.warning(f"{username} has no visible conversation titles; saving snapshot")
         save_debug_snapshot(page, username, "chat_ready")
     return search_input
 
@@ -115,7 +117,7 @@ def wait_for_search_results(page):
             return True
         try:
             body = page.locator("body").inner_text(timeout=1000)
-            if "????????" in body:
+            if SEARCH_EMPTY_TEXT in body:
                 return False
         except Exception:
             pass
@@ -129,7 +131,7 @@ def search_and_select_user(page, username, targets):
     remaining_targets = set(normalized_targets)
     sent_titles = set()
 
-    logger.info(f"?? {username} ??????: {normalized_targets}")
+    logger.info(f"{username} search targets: {normalized_targets}")
 
     for query in normalized_targets:
         if query not in remaining_targets:
@@ -140,7 +142,7 @@ def search_and_select_user(page, username, targets):
         search_input.press("Enter")
         found = wait_for_search_results(page)
         if not found:
-            logger.info(f"?? {username} ?? {query} ???")
+            logger.info(f"{username} search miss: {query}")
             continue
 
         results = page.locator(".SearchPanelitembox")
@@ -172,18 +174,18 @@ def search_and_select_user(page, username, targets):
             if not cover:
                 cover = {query}
             remaining_targets.difference_update(cover)
-            logger.info(f"?? {username} ???? {title}?????: {sorted(cover)}")
+            logger.info(f"{username} search matched {title}; covered: {sorted(cover)}")
             yield title
             matched = True
             break
 
         if not matched:
-            logger.info(f"?? {username} ?? {query} ?????????????")
+            logger.info(f"{username} search results for {query} were not actionable")
 
     clear_search_input(page, search_input)
 
     if remaining_targets:
-        logger.warning(f"?? {username} ??????????????: {sorted(remaining_targets)}")
+        logger.warning(f"{username} still missing after search; fallback list scan: {sorted(remaining_targets)}")
         yield from scroll_and_select_user(page, username, remaining_targets, sent_titles)
 
 
@@ -223,7 +225,7 @@ def scroll_and_select_user(page, username, remaining_targets, sent_titles):
             item.click()
             sent_titles.add(title)
             remaining_targets.difference_update(cover)
-            logger.info(f"?? {username} ???? {title}?????: {sorted(cover)}")
+            logger.info(f"{username} list matched {title}; covered: {sorted(cover)}")
             yield title
             time.sleep(1)
             break
@@ -231,20 +233,20 @@ def scroll_and_select_user(page, username, remaining_targets, sent_titles):
             if len(seen_titles) > prev_seen_count:
                 empty_scroll_count = 0
                 if visible_titles:
-                    logger.info(f"?? {username} ????????: {visible_titles[:12]}")
+                    logger.info(f"{username} visible list titles: {visible_titles[:12]}")
             else:
                 empty_scroll_count += 1
 
             if empty_scroll_count >= max_empty_scrolls:
                 logger.warning(
-                    f"?? {username} ?? {max_empty_scrolls} ???????????????????: {sorted(remaining_targets)}"
+                    f"{username} hit {max_empty_scrolls} empty scrolls; remaining targets: {sorted(remaining_targets)}"
                 )
                 save_debug_snapshot(page, username, "scroll_fallback")
                 break
 
             scrollable = page.locator(list_selector)
             if scrollable.count() == 0:
-                logger.warning(f"?? {username} ????????????????")
+                logger.warning(f"{username} could not find conversation list container")
                 save_debug_snapshot(page, username, "missing_list")
                 break
 
@@ -264,7 +266,7 @@ def send_message(page, account_name: str, target_title: str):
         chat_input.type(line)
         if idx != len(lines) - 1:
             chat_input.press("Shift+Enter")
-    logger.info(f"?? {account_name} ?? {target_title} ???????")
+    logger.info(f"{account_name} typed renewal message for {target_title}")
     chat_input.press("Enter")
     time.sleep(2)
 
@@ -290,7 +292,7 @@ def do_user_task(browser, account_name, cookies, targets):
     context.add_cookies(cookies)
 
     retry_operation(
-        "???????",
+        "open douyin chat",
         page.goto,
         retries=config["taskRetryTimes"],
         delay=5,
@@ -298,7 +300,7 @@ def do_user_task(browser, account_name, cookies, targets):
     )
 
     time.sleep(5)
-    logger.info(f"?? {account_name} ?????????")
+    logger.info(f"{account_name} started chat targeting")
 
     sent_count = 0
     for target_title in search_and_select_user(page, account_name, targets):
@@ -306,14 +308,14 @@ def do_user_task(browser, account_name, cookies, targets):
             send_message(page, account_name, target_title)
             sent_count += 1
         except Exception as e:
-            logger.warning(f"?? {account_name} ? {target_title} ????: {e}")
+            logger.warning(f"{account_name} failed to send to {target_title}: {e}")
             save_debug_snapshot(page, account_name, f"send_failed_{safe_slug(target_title)}")
 
     if sent_count == 0:
-        logger.warning(f"?? {account_name} ???????????????????")
+        logger.warning(f"{account_name} did not hit any targets; saved debug snapshot")
         save_debug_snapshot(page, account_name, "no_target_sent")
     else:
-        logger.info(f"?? {account_name} ?????? {sent_count} ???")
+        logger.info(f"{account_name} hit {sent_count} targets in this run")
 
     context.close()
 
@@ -321,14 +323,14 @@ def do_user_task(browser, account_name, cookies, targets):
 def runTasks():
     playwright, browser = get_browser()
     try:
-        logger.info("??????")
+        logger.info("starting tasks")
         for user in userData:
             cookies = user["cookies"]
             targets = user["targets"]
-            account_name = user.get("username", "????")
-            logger.info(f"?????? {account_name}")
+            account_name = user.get("username", "unknown")
+            logger.info(f"processing account {account_name}")
             do_user_task(browser, account_name, cookies, targets)
-            logger.info(f"?? {account_name} ????")
+            logger.info(f"account {account_name} complete")
     finally:
         browser.close()
         playwright.stop()
