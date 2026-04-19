@@ -10,9 +10,6 @@ jobs:
     environment: user-data
     steps:
     - uses: actions/checkout@v4
-      with:
-        repository: 2061360308/DouYinSparkFlow
-        ref: dev
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -25,13 +22,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     - name: Ensure browsers are installed
-      run: playwright install chromium --with-deps --only-shell
+      run: playwright install chromium --with-deps
     - name: Export Github Environment Variables and Secrets to JSON
       env:
         VARS_JSON: ${{ toJson(vars) }}
         SECRETS_JSON: ${{ toJson(secrets) }}
       run: python utils/export_github_env.py
     - name: Run DouYin Spark Flow
+      env:
+        PYTHONUTF8: '1'
       run: python main.py
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
