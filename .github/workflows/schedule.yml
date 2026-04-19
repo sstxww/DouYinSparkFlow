@@ -9,6 +9,8 @@ on:
       timezone: "Asia/Shanghai"
     - cron: "15,20,25,30 9 * * *"
       timezone: "Asia/Shanghai"
+    - cron: "12,17,22,27 11 * * *"
+      timezone: "Asia/Shanghai"
     - cron: "26,31,36,41 14 * * *"
       timezone: "Asia/Shanghai"
     - cron: "50,55 18 * * *"
@@ -46,6 +48,7 @@ jobs:
               { label: '00:30', minute: 30, schedules: ['30,35,40,45 0 * * *'] },
               { label: '08:36', minute: 8 * 60 + 36, schedules: ['36,41,46,51 8 * * *'] },
               { label: '09:15', minute: 9 * 60 + 15, schedules: ['15,20,25,30 9 * * *'] },
+              { label: '11:12', minute: 11 * 60 + 12, schedules: ['12,17,22,27 11 * * *'] },
               { label: '14:26', minute: 14 * 60 + 26, schedules: ['26,31,36,41 14 * * *'] },
               { label: '18:50', minute: 18 * 60 + 50, schedules: ['50,55 18 * * *', '1,6 19 * * *'] },
               { label: '20:14', minute: 20 * 60 + 14, schedules: ['14,19,24,29 20 * * *'] },
