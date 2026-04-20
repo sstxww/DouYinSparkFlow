@@ -2,13 +2,91 @@ name: DouYin Spark Flow Schedule Run
 on:
   workflow_dispatch:
   schedule:
-    - cron: 0 0 * * * # Beijing 08:00
-    - cron: 30 3 * * * # Beijing 11:30
-    - cron: 20 8 * * * # Beijing 16:20
-    - cron: 0 12 * * * # Beijing 20:00
-    - cron: 0 13 * * * # Beijing 21:00
+    - cron: '*/5 * * * *'
+permissions:
+  actions: read
+  contents: read
+concurrency:
+  group: douyin-spark-flow-schedule
+  cancel-in-progress: false
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.slot.outputs.go }}
+    steps:
+    - id: slot
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const slots = [
+            { label: '08:00', minute: 8 * 60 },
+            { label: '11:30', minute: 11 * 60 + 30 },
+            { label: '16:20', minute: 16 * 60 + 20 },
+            { label: '20:00', minute: 20 * 60 },
+            { label: '21:00', minute: 21 * 60 },
+          ];
+          const graceMinutes = 90;
+
+          if (context.eventName === 'workflow_dispatch') {
+            core.notice('manual dispatch');
+            core.setOutput('go', 'true');
+            return;
+          }
+
+          const now = new Date();
+          const nowShanghai = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+          const nowMinute = nowShanghai.getHours() * 60 + nowShanghai.getMinutes();
+
+          const active = slots.find((slot) => {
+            const diff = nowMinute - slot.minute;
+            return diff >= 0 && diff < graceMinutes;
+          });
+
+          if (!active) {
+            core.notice('skip outside delivery window');
+            core.setOutput('go', 'false');
+            return;
+          }
+
+          const windowStartUtc = new Date(now.getTime() - (nowMinute - active.minute) * 60 * 1000);
+          const windowEndUtc = new Date(windowStartUtc.getTime() + graceMinutes * 60 * 1000);
+
+          const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'schedule.yml',
+            branch: 'main',
+            per_page: 100,
+            event: 'schedule',
+          });
+
+          for (const run of runs) {
+            if (run.id === context.runId) continue;
+            const createdAt = new Date(run.created_at);
+            if (createdAt < windowStartUtc || createdAt >= windowEndUtc) continue;
+
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const mainJob = jobs.find((job) => job.name === 'run-main');
+            if (!mainJob) continue;
+
+            if (mainJob.status !== 'completed' || mainJob.conclusion === 'success') {
+              core.notice(`skip duplicate for ${active.label}, existing run ${run.id}`);
+              core.setOutput('go', 'false');
+              return;
+            }
+          }
+
+          core.notice(`run slot ${active.label}`);
+          core.setOutput('go', 'true');
   run-main:
+    needs: guard
+    if: needs.guard.outputs.go == 'true'
     timeout-minutes: 20
     runs-on: ubuntu-latest
     environment: user-data
