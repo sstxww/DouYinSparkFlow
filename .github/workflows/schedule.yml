@@ -1,6 +1,11 @@
 name: DouYin Spark Flow Schedule Run
 on:
   workflow_dispatch:
+    inputs:
+      slot:
+        description: Optional delivery slot to run. Leave blank to run all accounts.
+        required: false
+        type: string
   schedule:
     - cron: '*/5 * * * *'
 permissions:
@@ -14,23 +19,31 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       go: ${{ steps.slot.outputs.go }}
+      slot: ${{ steps.slot.outputs.slot }}
     steps:
     - id: slot
       uses: actions/github-script@v8
       with:
         script: |
           const slots = [
+            { label: '00:30', minute: 30 },
+            { label: '03:50', minute: 3 * 60 + 50 },
             { label: '08:00', minute: 8 * 60 },
             { label: '11:30', minute: 11 * 60 + 30 },
+            { label: '14:30', minute: 14 * 60 + 30 },
             { label: '16:20', minute: 16 * 60 + 20 },
+            { label: '18:20', minute: 18 * 60 + 20 },
             { label: '20:00', minute: 20 * 60 },
+            { label: '20:50', minute: 20 * 60 + 50 },
             { label: '21:00', minute: 21 * 60 },
           ];
-          const graceMinutes = 90;
+          const maxCatchupMinutes = 180;
 
           if (context.eventName === 'workflow_dispatch') {
-            core.notice('manual dispatch');
+            const manualSlot = String((context.payload.inputs || {}).slot || '').trim();
+            core.notice(manualSlot ? `manual dispatch slot ${manualSlot}` : 'manual dispatch all accounts');
             core.setOutput('go', 'true');
+            core.setOutput('slot', manualSlot || 'manual');
             return;
           }
 
@@ -38,19 +51,30 @@ jobs:
           const nowShanghai = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
           const nowMinute = nowShanghai.getHours() * 60 + nowShanghai.getMinutes();
 
-          const active = slots.find((slot) => {
-            const diff = nowMinute - slot.minute;
-            return diff >= 0 && diff < graceMinutes;
-          });
+          let active = null;
+          for (let index = slots.length - 1; index >= 0; index -= 1) {
+            const slot = slots[index];
+            if (nowMinute < slot.minute) {
+              continue;
+            }
+
+            const nextMinute = index + 1 < slots.length ? slots[index + 1].minute : 24 * 60;
+            const windowEndMinute = Math.min(nextMinute, slot.minute + maxCatchupMinutes);
+            if (nowMinute < windowEndMinute) {
+              active = { ...slot, windowEndMinute };
+              break;
+            }
+          }
 
           if (!active) {
             core.notice('skip outside delivery window');
             core.setOutput('go', 'false');
+            core.setOutput('slot', '');
             return;
           }
 
           const windowStartUtc = new Date(now.getTime() - (nowMinute - active.minute) * 60 * 1000);
-          const windowEndUtc = new Date(windowStartUtc.getTime() + graceMinutes * 60 * 1000);
+          const windowEndUtc = new Date(windowStartUtc.getTime() + (active.windowEndMinute - active.minute) * 60 * 1000);
 
           const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
             owner: context.repo.owner,
@@ -78,12 +102,14 @@ jobs:
             if (mainJob.status !== 'completed' || mainJob.conclusion === 'success') {
               core.notice(`skip duplicate for ${active.label}, existing run ${run.id}`);
               core.setOutput('go', 'false');
+              core.setOutput('slot', active.label);
               return;
             }
           }
 
           core.notice(`run slot ${active.label}`);
           core.setOutput('go', 'true');
+          core.setOutput('slot', active.label);
   run-main:
     needs: guard
     if: needs.guard.outputs.go == 'true'
@@ -113,6 +139,7 @@ jobs:
     - name: Run DouYin Spark Flow
       env:
         PYTHONUTF8: '1'
+        ACTIVE_SLOT: ${{ needs.guard.outputs.slot }}
       run: python main.py
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
