@@ -54,10 +54,15 @@ def get_config():
 
 
 def sanitize_cookies(cookies):
+    clean = []
     for cookie in cookies:
+        if not cookie.get("name"):
+            continue
+        cookie = dict(cookie)
         if "sameSite" in cookie:
             cookie.pop("sameSite")
-    return cookies
+        clean.append(cookie)
+    return clean
 
 
 def get_userData():
@@ -87,12 +92,14 @@ def get_userData():
             continue
 
         targets = [norm(t) for t in task.get("targets", []) if norm(t)]
+        slots = [norm(slot) for slot in task.get("slots", []) if norm(slot)]
         userData.append(
             {
                 "unique_id": unique_id,
                 "username": username,
                 "cookies": sanitize_cookies(cookies),
                 "targets": targets,
+                "slots": slots,
             }
         )
 
