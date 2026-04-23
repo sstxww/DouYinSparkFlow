@@ -1,3 +1,4 @@
+import os
 import re
 import time
 import traceback
@@ -76,6 +77,22 @@ def get_visible_titles(page):
         return [norm(t) for t in page.locator(".conversationConversationItemtitle").all_inner_texts() if norm(t)]
     except Exception:
         return []
+
+
+def active_slot_label():
+    return norm(os.getenv("ACTIVE_SLOT"))
+
+
+def account_matches_active_slot(user):
+    slot = active_slot_label()
+    if not slot or slot == "manual":
+        return True
+
+    configured_slots = [norm(value) for value in user.get("slots", []) if norm(value)]
+    if not configured_slots:
+        return True
+
+    return slot in configured_slots
 
 
 def resolve_aliases(title: str):
@@ -323,11 +340,15 @@ def do_user_task(browser, account_name, cookies, targets):
 def runTasks():
     playwright, browser = get_browser()
     try:
-        logger.info("starting tasks")
+        slot = active_slot_label()
+        logger.info(f"starting tasks, active delivery slot: {slot or 'manual'}")
         for user in userData:
             cookies = user["cookies"]
             targets = user["targets"]
             account_name = user.get("username", "unknown")
+            if not account_matches_active_slot(user):
+                logger.info(f"skip account {account_name}, slot {slot} not in {user.get('slots', [])}")
+                continue
             logger.info(f"processing account {account_name}")
             do_user_task(browser, account_name, cookies, targets)
             logger.info(f"account {account_name} complete")
