@@ -26,15 +26,10 @@ jobs:
       with:
         script: |
           const slots = [
-            { label: '00:30', minute: 30 },
-            { label: '03:50', minute: 3 * 60 + 50 },
             { label: '08:00', minute: 8 * 60 },
-            { label: '11:30', minute: 11 * 60 + 30 },
-            { label: '14:30', minute: 14 * 60 + 30 },
+            { label: '10:30', minute: 10 * 60 + 30 },
+            { label: '12:30', minute: 12 * 60 + 30 },
             { label: '16:20', minute: 16 * 60 + 20 },
-            { label: '18:20', minute: 18 * 60 + 20 },
-            { label: '20:00', minute: 20 * 60 },
-            { label: '20:50', minute: 20 * 60 + 50 },
             { label: '21:00', minute: 21 * 60 },
           ];
           const maxCatchupMinutes = 180;
