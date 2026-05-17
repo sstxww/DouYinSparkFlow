@@ -91,6 +91,11 @@ def get_userData():
             logger.warning(f"{username} ??? {cookies_key} ?????????")
             continue
 
+        message_template = task.get("messageTemplate", task.get("message_template", ""))
+        if message_template is None:
+            message_template = ""
+        else:
+            message_template = str(message_template).strip()
         targets = [norm(t) for t in task.get("targets", []) if norm(t)]
         slots = [norm(slot) for slot in task.get("slots", []) if norm(slot)]
         userData.append(
@@ -100,6 +105,7 @@ def get_userData():
                 "cookies": sanitize_cookies(cookies),
                 "targets": targets,
                 "slots": slots,
+                "messageTemplate": message_template,
             }
         )
 
