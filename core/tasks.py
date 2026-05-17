@@ -273,11 +273,11 @@ def scroll_and_select_user(page, username, remaining_targets, sent_titles):
             time.sleep(1.2)
 
 
-def send_message(page, account_name: str, target_title: str):
+def send_message(page, account_name: str, target_title: str, message_template=None):
     chat_input_selector = ".messageEditorimChatEditorContainer"
     page.wait_for_selector(chat_input_selector, timeout=config["browserTimeout"])
     chat_input = page.locator(chat_input_selector).first
-    message = build_message()
+    message = build_message(message_template)
     lines = message.split("\\n")
     for idx, line in enumerate(lines):
         chat_input.type(line)
@@ -288,7 +288,7 @@ def send_message(page, account_name: str, target_title: str):
     time.sleep(2)
 
 
-def do_user_task(browser, account_name, cookies, targets):
+def do_user_task(browser, account_name, cookies, targets, message_template=None):
     global userIDDict
     userIDDict = {}
 
@@ -322,7 +322,7 @@ def do_user_task(browser, account_name, cookies, targets):
     sent_count = 0
     for target_title in search_and_select_user(page, account_name, targets):
         try:
-            send_message(page, account_name, target_title)
+            send_message(page, account_name, target_title, message_template)
             sent_count += 1
         except Exception as e:
             logger.warning(f"{account_name} failed to send to {target_title}: {e}")
@@ -349,8 +349,9 @@ def runTasks():
             if not account_matches_active_slot(user):
                 logger.info(f"skip account {account_name}, slot {slot} not in {user.get('slots', [])}")
                 continue
+            message_template = user.get("messageTemplate", "")
             logger.info(f"processing account {account_name}")
-            do_user_task(browser, account_name, cookies, targets)
+            do_user_task(browser, account_name, cookies, targets, message_template)
             logger.info(f"account {account_name} complete")
     finally:
         browser.close()
