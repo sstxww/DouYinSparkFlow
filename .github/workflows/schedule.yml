@@ -108,7 +108,7 @@ jobs:
   run-main:
     needs: guard
     if: needs.guard.outputs.go == 'true'
-    timeout-minutes: 20
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     environment: user-data
     steps:
