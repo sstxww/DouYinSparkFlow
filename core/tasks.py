@@ -329,8 +329,9 @@ def do_user_task(browser, account_name, cookies, targets, message_template=None)
             save_debug_snapshot(page, account_name, f"send_failed_{safe_slug(target_title)}")
 
     if sent_count == 0:
-        logger.warning(f"{account_name} did not hit any targets; saved debug snapshot")
+        logger.error(f"{account_name} did not hit any targets; saved debug snapshot")
         save_debug_snapshot(page, account_name, "no_target_sent")
+        raise RuntimeError(f"{account_name} did not send any renewal messages")
     else:
         logger.info(f"{account_name} hit {sent_count} targets in this run")
 
