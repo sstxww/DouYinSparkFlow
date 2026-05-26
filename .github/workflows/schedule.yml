@@ -27,7 +27,6 @@ jobs:
         script: |
           const slots = [
             { label: '08:00', minute: 8 * 60 },
-            { label: '10:30', minute: 10 * 60 + 30 },
             { label: '12:30', minute: 12 * 60 + 30 },
             { label: '16:20', minute: 16 * 60 + 20 },
             { label: '21:00', minute: 21 * 60 },
@@ -125,7 +124,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     - name: Ensure browsers are installed
-      run: playwright install chromium --with-deps
+      run: |
+        for attempt in 1 2 3; do
+          playwright install chromium --with-deps && exit 0
+          echo "browser install attempt ${attempt} failed"
+          sleep 20
+        done
+        exit 1
     - name: Export Github Environment Variables and Secrets to JSON
       env:
         VARS_JSON: ${{ toJson(vars) }}
@@ -135,7 +140,13 @@ jobs:
       env:
         PYTHONUTF8: '1'
         ACTIVE_SLOT: ${{ needs.guard.outputs.slot }}
-      run: python main.py
+      run: |
+        for attempt in 1 2 3; do
+          python main.py && exit 0
+          echo "send attempt ${attempt} failed"
+          sleep 30
+        done
+        exit 1
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
