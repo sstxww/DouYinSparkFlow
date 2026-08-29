@@ -6,6 +6,22 @@
 ![Playwright](https://img.shields.io/badge/Playwright-%E2%9C%94-green?logo=playwright)
 ![chrome-headless-shell](https://img.shields.io/badge/chrome--headless--shell-%E2%9C%94-brightgreen?logo=googlechrome)
 
+## 仓库导览
+
+| 维度 | 说明 |
+| --- | --- |
+| 用途 | 通过浏览器自动化为指定抖音好友定时发送消息，维系火花 |
+| 推荐部署 | GitHub Actions；源码部署适合需要自行管理运行环境的用户 |
+| 配置入口 | `docs/配置生成器使用.md` |
+| 主要文档 | Action 部署与源码部署分别放在 `docs/` 目录 |
+| 上游提示 | 贡献者、讨论区和 Star 趋势链接目前指向 `2061360308/DouYinSparkFlow` |
+
+<p align="center"><a href="#-项目介绍">项目介绍</a> · <a href="#-使用方法">使用方法</a> · <a href="#免责声明">免责声明</a> · <a href="#-开源协议">开源协议</a></p>
+
+> `dev` 分支与 `main` 的页面入口不同；选择部署分支前先阅读下方现有说明。
+
+---
+
 > `dev`分支迁移到`https://www.douyin.com/chat` 加载更稳定，支持通过备注/昵称/抖音号等多种方式智能匹配。由于`https://www.douyin.com/chat`没经过长期测试，该分支目前暂不合并。有能力的可以研究一下
 
 ## 贡献者
