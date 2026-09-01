@@ -129,15 +129,21 @@ jobs:
           sleep 20
         done
         exit 1
-    - name: Export Github Environment Variables and Secrets to JSON
-      env:
-        VARS_JSON: ${{ toJson(vars) }}
-        SECRETS_JSON: ${{ toJson(secrets) }}
-      run: python utils/export_github_env.py
     - name: Run DouYin Spark Flow
       env:
         PYTHONUTF8: '1'
         ACTIVE_SLOT: ${{ needs.guard.outputs.slot }}
+        PROXY_ADDRESS: ${{ vars.PROXY_ADDRESS }}
+        MESSAGE_TEMPLATE: ${{ vars.MESSAGE_TEMPLATE }}
+        HITOKOTO_TYPES: ${{ vars.HITOKOTO_TYPES }}
+        MATCH_MODE: ${{ vars.MATCH_MODE }}
+        BROWSER_TIMEOUT: ${{ vars.BROWSER_TIMEOUT }}
+        FRIEND_LIST_WAIT_TIME: ${{ vars.FRIEND_LIST_WAIT_TIME }}
+        TASK_RETRY_TIMES: ${{ vars.TASK_RETRY_TIMES }}
+        LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+        TASKS: ${{ vars.TASKS }}
+        COOKIES_DY290014904: ${{ secrets.COOKIES_DY290014904 }}
+        COOKIES_YJT08210111: ${{ secrets.COOKIES_YJT08210111 }}
       run: |
         for attempt in 1 2 3; do
           python main.py && exit 0
